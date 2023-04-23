@@ -45,8 +45,8 @@ function _zsh_ask_show_help() {
   echo "Usage: ask [options...]"
   echo "       ask [options...] '<your-question>'"
   echo "Options:"
-  echo "  -h                Display this help message."
-  echo "  -v                Display the version number."
+  echo "  -h                echo this help message."
+  echo "  -v                echo the version number."
   echo "  -i                Inherits conversation from last chat."
   echo "  -c                Enable conversation."
   echo "  -f <path_to_file> Enable file as query suffix."
@@ -87,6 +87,11 @@ function _zsh_ask_show_version() {
   echo "$ZSH_ASK_VERSION"
 }
 
+function export_text_file() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): ${1}" >> $2
+}
+
+
 function ask() {
     local api_url=$ZSH_ASK_API_URL
     local api_key=$ZSH_ASK_API_KEY
@@ -96,7 +101,6 @@ function ask() {
     local tokens=$ZSH_ASK_TOKENS
     local inherits=$ZSH_ASK_INHERITS
     local history=""
-    
 
     local usefile=false
     local filepath=""
@@ -104,7 +108,9 @@ function ask() {
     local debug=false
     local satisfied=true
     local input=""
-    while getopts ":hvcdmsiuUf:t:" opt; do
+    local output=false
+    local outputfilepath=""
+    while getopts ":hvcdmsiuUfo:t:" opt; do
         case $opt in
             h)
                 _zsh_ask_show_help
@@ -162,6 +168,19 @@ function ask() {
                     filepath=$OPTARG
                 fi
                 ;;
+            o)
+                output=true
+                if ! [ -f $OPTARG ]; then
+                    echo "$OPTARG does not exist."
+                    return 1
+                else
+                    if ! which "xargs" > /dev/null; then
+                        echo "xargs is required for file."
+                        satisfied=false
+                    fi
+                    outputfilepath=$OPTARG
+                fi
+                ;;
             m)
                 makrdown=true
                 if ! which "glow" > /dev/null; then
@@ -213,6 +232,7 @@ function ask() {
 
     while true; do
         history=$history' {"role":"user", "content":"'"$input"'"}'
+        export_text_file "[user]: ${input}" $outputfilepath
         if $debug; then
             echo -E "$history"
         fi
@@ -265,6 +285,7 @@ function ask() {
                 echo $generated_text | glow
             else
                 echo $generated_text
+                export_text_file "[ChatGPT]: ${generated_text}" $outputfilepath
             fi
         fi
         history=$history', '$message', '
